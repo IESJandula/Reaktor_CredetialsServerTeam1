@@ -45,7 +45,7 @@ public class CredencialController
         catch (CredencialException credencialException)
         {
             // Error de validación controlado: se traduce a su código HTTP
-            return ResponseEntity.status(this.obtenerStatusCrear(credencialException.getCode())).body(credencialException.getBodyExceptionMessage());
+            return ResponseEntity.status(this.obtenerStatusPost(credencialException.getCode())).body(credencialException.getBodyExceptionMessage());
         }
         catch (Exception exception)
         {
@@ -144,7 +144,7 @@ public class CredencialController
      * @return 200 con la contraseña, 400-403 si falla el filtro o hay varias coincidencias,
      *         o 500 si hay un error inesperado
      */
-    @RequestMapping(method = RequestMethod.GET, value = "/password", consumes = "application/json", produces = "application/json")
+    @RequestMapping(method = RequestMethod.GET, value = "/password", consumes = "application/json")
     public ResponseEntity<?> obtenerPassword(@RequestBody CredencialDTO credencialDTO)
     {
         try
@@ -171,7 +171,7 @@ public class CredencialController
      * @param code código de error de la CredencialException
      * @return código HTTP correspondiente
      */
-    private int obtenerStatusCrear(String code)
+    private int obtenerStatusPost(String code)
     {
         if (code.equals(Constants.ERROR_USUARIO_NULO_O_VACIO))
         {

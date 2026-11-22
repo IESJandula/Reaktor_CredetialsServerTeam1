@@ -3,14 +3,18 @@ spring:
     name: credenciales
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: create
   datasource:
     url: jdbc:mysql://localhost:3306/credenciales?createDatabaseIfNotExist=true
     username: root
-    password: toor
+    password: ${DB_PASSWORD}
     hikari:
       connection-timeout: 60000
       maximum-pool-size: 5
+  servlet:
+    multipart:
+      max-request-size: -1
+      max-file-size: -1
   http:
     encoding:
       charset: UTF-8

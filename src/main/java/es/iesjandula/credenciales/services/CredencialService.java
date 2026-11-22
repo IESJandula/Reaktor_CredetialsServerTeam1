@@ -2,7 +2,7 @@ package es.iesjandula.credenciales.services;
 
 import es.iesjandula.credenciales.dtos.CredencialDTO;
 import es.iesjandula.credenciales.dtos.CredencialPassDTO;
-import es.iesjandula.credenciales.models.CredencialPass;
+import es.iesjandula.credenciales.models.Credencial;
 import es.iesjandula.credenciales.repositories.CredencialRepository;
 import es.iesjandula.credenciales.utils.Constants;
 import es.iesjandula.credenciales.utils.CredencialException;
@@ -34,16 +34,15 @@ public class CredencialService
         this.validarCredencial(credencialPassDTO);
         this.validarPassword(credencialPassDTO.getPassword());
 
-        // El id va a null para que lo genere la base de datos
-        CredencialPass credencialPass = new CredencialPass(null,
-                credencialPassDTO.getUsuario(),
-                credencialPassDTO.getDescripcion(),
-                credencialPassDTO.getUbicacion(),
-                credencialPassDTO.getUrl(),
-                true,
-                credencialPassDTO.getPassword());
+        Credencial credencial = new Credencial();
+        credencial.setUsuario(credencialPassDTO.getUsuario());
+        credencial.setDescripcion(credencialPassDTO.getDescripcion());
+        credencial.setUbicacion(this.normalizar(credencialPassDTO.getUbicacion()));
+        credencial.setUrl(this.normalizar(credencialPassDTO.getUrl()));
+        credencial.setFunciona(true);
+        credencial.setPassword(credencialPassDTO.getPassword());
 
-        this.credencialRepository.saveAndFlush(credencialPass);
+        this.credencialRepository.saveAndFlush(credencial);
     }
 
     /**
@@ -62,7 +61,7 @@ public class CredencialService
      */
     public void eliminarCredenciales(CredencialDTO credencialDTO) throws CredencialException
     {
-        List<CredencialPass> listaCredenciales = this.buscarCredenciales(credencialDTO);
+        List<Credencial> listaCredenciales = this.buscarCredenciales(credencialDTO);
 
         this.credencialRepository.deleteAll(listaCredenciales);
         this.credencialRepository.flush();
@@ -76,11 +75,11 @@ public class CredencialService
      */
     public void actualizarFuncionamiento(CredencialDTO credencialDTO, Boolean funciona) throws CredencialException
     {
-        List<CredencialPass> listaCredenciales = this.buscarCredenciales(credencialDTO);
+        List<Credencial> listaCredenciales = this.buscarCredenciales(credencialDTO);
 
-        for (CredencialPass credencialPass : listaCredenciales)
+        for (Credencial credencial : listaCredenciales)
         {
-            credencialPass.setFunciona(funciona);
+            credencial.setFunciona(funciona);
         }
 
         this.credencialRepository.saveAllAndFlush(listaCredenciales);
@@ -96,7 +95,7 @@ public class CredencialService
      */
     public String obtenerPassword(CredencialDTO credencialDTO) throws CredencialException
     {
-        List<CredencialPass> listaCredenciales = this.buscarCredenciales(credencialDTO);
+        List<Credencial> listaCredenciales = this.buscarCredenciales(credencialDTO);
 
         // Solo se puede devolver la contraseña si el filtro identifica una única credencial
         if (listaCredenciales.size() > 1)
@@ -117,29 +116,28 @@ public class CredencialService
      * @return lista con las credenciales encontradas (nunca vacía)
      * @throws CredencialException si el filtro no es válido o no coincide con ninguna credencial
      */
-    private List<CredencialPass> buscarCredenciales(CredencialDTO credencialDTO) throws CredencialException
+    private List<Credencial> buscarCredenciales(CredencialDTO credencialDTO) throws CredencialException
     {
         this.validarFiltro(credencialDTO);
 
         // Si llegan vacíos se pasan como null para que la @Query no filtre por ese campo
-        String ubicacion = credencialDTO.getUbicacion();
-        if (ubicacion != null && ubicacion.isEmpty())
-        {
-            ubicacion = null;
-        }
+        String ubicacion = this.normalizar(credencialDTO.getUbicacion());
+        String url = this.normalizar(credencialDTO.getUrl());
 
-        String url = credencialDTO.getUrl();
-        if (url != null && url.isEmpty())
-        {
-            url = null;
-        }
-
-        List<CredencialPass> listaCredenciales = this.credencialRepository.buscarCredenciales(credencialDTO.getUsuario(), ubicacion, url);
+        List<Credencial> listaCredenciales = this.credencialRepository.buscarCredenciales(credencialDTO.getUsuario(), ubicacion, url);
 
         if (listaCredenciales.isEmpty())
         {
-            String errorString = "No existe ninguna credencial del usuario " + credencialDTO.getUsuario()
-                    + " con ubicación " + credencialDTO.getUbicacion() + " y url " + credencialDTO.getUrl();
+            // En el mensaje solo se incluyen los campos por los que se ha filtrado
+            String errorString = "No existe ninguna credencial del usuario " + credencialDTO.getUsuario();
+            if (ubicacion != null)
+            {
+                errorString += " con ubicación " + ubicacion;
+            }
+            if (url != null)
+            {
+                errorString += " con url " + url;
+            }
 
             log.error(errorString);
             throw new CredencialException(Constants.ERROR_UBICACION_NO_EXISTE, errorString);
@@ -184,10 +182,7 @@ public class CredencialService
         }
 
         // Ubicación y url: basta con que una de las dos esté rellena
-        if (
-                (credencialPassDTO.getUbicacion() == null || credencialPassDTO.getUbicacion().isEmpty()) &&
-                (credencialPassDTO.getUrl() == null || credencialPassDTO.getUrl().isEmpty())
-        )
+        if (this.normalizar(credencialPassDTO.getUbicacion()) == null && this.normalizar(credencialPassDTO.getUrl()) == null)
         {
             String errorString = "La ubicación y la url son nulas o vacías. Una de las dos debe estar rellena";
 
@@ -216,7 +211,7 @@ public class CredencialService
         // Objeto
         if (credencialDTO == null)
         {
-            String errorString = "El objeto CredencialPassDTO viene vacío";
+            String errorString = "El objeto CredencialDTO viene vacío";
 
             log.error(errorString);
             throw new CredencialException(Constants.ERROR_OBJETO_VACIO, errorString);
@@ -232,16 +227,29 @@ public class CredencialService
         }
 
         // Ubicación y url: basta con que una de las dos esté rellena
-        if (
-                (credencialDTO.getUbicacion() == null || credencialDTO.getUbicacion().isEmpty()) &&
-                        (credencialDTO.getUrl() == null || credencialDTO.getUrl().isEmpty())
-        )
+        if (this.normalizar(credencialDTO.getUbicacion()) == null && this.normalizar(credencialDTO.getUrl()) == null)
         {
             String errorString = "La ubicación y la url son nulas o vacías. Una de las dos debe estar rellena";
 
             log.error(errorString);
             throw new CredencialException(Constants.ERROR_UBICACION_Y_URL_NULAS_O_VACIAS, errorString);
         }
+    }
+
+    /**
+     * Quita los espacios de los extremos y convierte las cadenas vacías
+     * o con solo espacios en null
+     * @param valor texto a normalizar (ubicación o url)
+     * @return el texto sin espacios en los extremos, o null si no tiene contenido
+     */
+    private String normalizar(String valor)
+    {
+        if (valor == null || valor.isBlank())
+        {
+            return null;
+        }
+
+        return valor.trim();
     }
 
     /**
